@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"go-sqlx-gin/db_client"
 	"net/http"
 
@@ -15,17 +14,6 @@ type User struct {
 	Username   string  `json:"username"`
 	Password   string  `json:"password"`
 	Prefecture *string `json:"prefecture"`
-}
-
-// 暗号(Hash)化
-func PasswordEncrypt(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	return string(hash), err
-}
-
-// 暗号(Hash)と入力された平パスワードの比較
-func CompareHashAndPassword(hash, password string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 }
 
 func CreateUser(c *gin.Context) {
@@ -81,7 +69,15 @@ func Login(c *gin.Context) {
 		})
 		return
 	}
-	dbPassword := GetUser(resBody.Username).Password
+	tmpPass, err := GetUser(resBody.Username)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"status":  "ng",
+			"message": "ユーザーが見つかりませんでした。",
+		})
+		return
+	}
+	dbPassword := tmpPass.Password
 	formPassword := resBody.Password
 
 	if err := CompareHashAndPassword(dbPassword, formPassword); err != nil {
@@ -113,7 +109,15 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
-	dbPassword := GetUser(resBody.Username).Password
+	tmpPass, err := GetUser(resBody.Username)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"status":  "ng",
+			"message": "ユーザーが見つかりませんでした。",
+		})
+		return
+	}
+	dbPassword := tmpPass.Password
 	formPassword := resBody.Password
 
 	if err := CompareHashAndPassword(dbPassword, formPassword); err != nil {
@@ -169,18 +173,70 @@ func GetUserInfo(c *gin.Context) {
 		})
 		return
 	}
+	user, err := GetUser(resBody.Username)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"status":  "ng",
+			"message": "ユーザーが見つかりません。",
+		})
+		return
+	}
+
 	c.JSON(http.StatusAccepted, gin.H{
 		"status":     "ok",
-		"username":   GetUser(resBody.Username).Username,
-		"prefecture": GetUser(resBody.Username).Prefecture,
+		"username":   user.Username,
+		"prefecture": user.Prefecture,
 	})
 }
 
-func GetUser(username string) User {
+func ChangePrefecture(c *gin.Context) {
+	var resBody struct {
+		Username   string `json:"username"`
+		Prefecture string `json:"prefecture"`
+	}
+	if err := c.ShouldBindJSON(&resBody); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error":   true,
+			"message": "Invalid request body",
+			"content": err.Error(),
+		})
+		return
+	}
+
+	res, err := db_client.DBClient.Exec("UPDATE user SET prefecture = ? WHERE username = ?;",
+		resBody.Prefecture,
+		resBody.Username,
+	)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"status":  "ng",
+			"message": "ユーザーが見つかりませんでした。",
+			"content": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusUnprocessableEntity, gin.H{
+		"status":   "ok",
+		"message":  "都道府県情報を変更しました。",
+		"response": res,
+	})
+}
+
+func GetUser(username string) (User, error) {
 	row := db_client.DBClient.QueryRow("SELECT id, username, password, prefecture FROM user WHERE username = ?;", username)
 	var user User
-	if err := row.Scan(&user.Id, &user.Username, &user.Password, &user.Prefecture); err != nil {
-		fmt.Println(err)
-	}
-	return user
+	err := row.Scan(&user.Id, &user.Username, &user.Password, &user.Prefecture)
+	return user, err
+}
+
+// 暗号(Hash)化
+func PasswordEncrypt(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(hash), err
+}
+
+// 暗号(Hash)と入力された平パスワードの比較
+func CompareHashAndPassword(hash, password string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 }

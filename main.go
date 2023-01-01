@@ -3,6 +3,7 @@ package main
 import (
 	"go-sqlx-gin/controller"
 	"go-sqlx-gin/db_client"
+	"go-sqlx-gin/fetch"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -24,4 +25,5 @@ func main() {
 	if err := r.Run(":5000"); err != nil {
 		log.Fatal(err)
 	}
+	fetch.GetHospitalinfo()
 }
