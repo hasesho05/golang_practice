@@ -1,8 +1,8 @@
 package controller
 
 import (
+	"fmt"
 	"go-sqlx-gin/db_client"
-	"log"
 	"net/http"
 
 	"golang.org/x/crypto/bcrypt"
@@ -11,7 +11,7 @@ import (
 )
 
 type User struct {
-	id         *int64  `json:id`
+	Id         *int64  `json:"id"`
 	Username   string  `json:"username"`
 	Password   string  `json:"password"`
 	Prefecture *string `json:"prefecture"`
@@ -77,7 +77,7 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error":   true,
 			"message": "Invalid request body",
-			"content": err,
+			"content": err.Error(),
 		})
 		return
 	}
@@ -98,11 +98,89 @@ func Login(c *gin.Context) {
 	})
 }
 
+func ChangePassword(c *gin.Context) {
+	var resBody struct {
+		Username    string `json:"username"`
+		Password    string `json:"password"`
+		Newpassword string `json:"newpassword"`
+	}
+	if err := c.ShouldBindJSON(&resBody); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error":   true,
+			"message": "Invalid request body",
+			"content": err.Error(),
+		})
+		return
+	}
+
+	dbPassword := GetUser(resBody.Username).Password
+	formPassword := resBody.Password
+
+	if err := CompareHashAndPassword(dbPassword, formPassword); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "ng",
+			"message": "パスワードが違います。",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	encryptedNewPassword, err := PasswordEncrypt(resBody.Newpassword)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error":   true,
+			"message": "Invalid request body",
+			"content": err.Error(),
+		})
+		return
+	}
+
+	res, err := db_client.DBClient.Exec("UPDATE user SET password = ? WHERE username = ?;",
+		encryptedNewPassword,
+		resBody.Username,
+	)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "ng",
+			"content": err.Error(),
+		})
+		return
+	}
+
+	row, _ := res.RowsAffected()
+
+	c.JSON(http.StatusAccepted, gin.H{
+		"status":  "ok",
+		"message": "パスワードが変更されました。",
+		"row":     row,
+	})
+}
+
+func GetUserInfo(c *gin.Context) {
+	var resBody struct {
+		Username string `json:"username"`
+	}
+	if err := c.ShouldBindJSON(&resBody); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error":   true,
+			"message": "Invalid request body",
+			"content": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusAccepted, gin.H{
+		"status":     "ok",
+		"username":   GetUser(resBody.Username).Username,
+		"prefecture": GetUser(resBody.Username).Prefecture,
+	})
+}
+
 func GetUser(username string) User {
 	row := db_client.DBClient.QueryRow("SELECT id, username, password, prefecture FROM user WHERE username = ?;", username)
 	var user User
-	if err := row.Scan(&user.id, &user.Username, &user.Password, &user.Prefecture); err != nil {
-		log.Fatal(err)
+	if err := row.Scan(&user.Id, &user.Username, &user.Password, &user.Prefecture); err != nil {
+		fmt.Println(err)
 	}
 	return user
 }
