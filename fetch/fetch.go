@@ -55,12 +55,4 @@ func GetHospitalinfo() {
 		fmt.Println(res)
 	}
 
-	// results := make[]hos
-
-	// for i, v in
-	// 	fmt.Println(i, v)
-	// }
-
-	// res, err := db_client.DBClient.Exec("INSERT INTO hospital (username, password, prefecture) VALUES (?, ?, ?);",
-
 }

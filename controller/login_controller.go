@@ -2,6 +2,7 @@ package controller
 
 import (
 	"go-sqlx-gin/db_client"
+	"log"
 	"net/http"
 
 	"golang.org/x/crypto/bcrypt"
@@ -227,6 +228,9 @@ func GetUser(username string) (User, error) {
 	row := db_client.DBClient.QueryRow("SELECT id, username, password, prefecture FROM user WHERE username = ?;", username)
 	var user User
 	err := row.Scan(&user.Id, &user.Username, &user.Password, &user.Prefecture)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 	return user, err
 }
 
