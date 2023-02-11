@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"go-sqlx-gin/db_client"
 	"log"
 	"net/http"
@@ -11,10 +12,13 @@ import (
 )
 
 type User struct {
-	Id         *int64  `json:"id"`
-	Username   string  `json:"username"`
-	Password   string  `json:"password"`
-	Prefecture *string `json:"prefecture"`
+	Id        *int64  `json:"id"`
+	Username  *string `json:"username"`
+	Email     *string `json:"email"`
+	Password  string  `json:"password"`
+	Token     string  `json:"token"`
+	Icon      *string `json:"icon"`
+	CreatedAt *string `json:"created_at"`
 }
 
 func CreateUser(c *gin.Context) {
@@ -24,6 +28,15 @@ func CreateUser(c *gin.Context) {
 			"error":   true,
 			"message": "Invalid request body",
 			"content": err,
+		})
+		return
+	}
+	fmt.Println(resBody)
+
+	if isExistUser(resBody.Token) {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error":   true,
+			"message": "User already exists",
 		})
 		return
 	}
@@ -37,30 +50,30 @@ func CreateUser(c *gin.Context) {
 		})
 	}
 
-	res, err := db_client.DBClient.Exec("INSERT INTO user (username, password, prefecture) VALUES (?, ?, ?);",
+	_, err = db_client.DBClient.Exec("INSERT INTO user (username, email, password, icon, token) VALUES (?, ?, ?, ?, ?);",
 		resBody.Username,
+		resBody.Email,
 		encryptedPassword,
-		resBody.Prefecture,
+		resBody.Icon,
+		resBody.Token,
 	)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   true,
+			"status":  "ng",
 			"content": err.Error(),
-			"message": "既に存在するユーザーネームです。",
+			"message": "Invalid request body",
 		})
 		return
 	}
 
-	id, _ := res.LastInsertId()
 	c.JSON(http.StatusCreated, gin.H{
 		"status": "ok",
 		"error":  false,
-		"id":     id,
 	})
 }
 
-func Login(c *gin.Context) {
+func Signin(c *gin.Context) {
 	var resBody User
 	if err := c.ShouldBindJSON(&resBody); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
@@ -68,17 +81,15 @@ func Login(c *gin.Context) {
 			"message": "Invalid request body",
 			"content": err.Error(),
 		})
-		return
 	}
-	tmpPass, err := GetUser(resBody.Username)
+	user, err := GetUser(*resBody.Email)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"status":  "ng",
 			"message": "ユーザーが見つかりませんでした。",
 		})
-		return
 	}
-	dbPassword := tmpPass.Password
+	dbPassword := user.Password
 	formPassword := resBody.Password
 
 	if err := CompareHashAndPassword(dbPassword, formPassword); err != nil {
@@ -89,17 +100,65 @@ func Login(c *gin.Context) {
 		})
 		return
 	}
+
 	c.JSON(http.StatusAccepted, gin.H{
 		"status":  "ok",
 		"message": "ログインしました。",
+		"data":    user,
 	})
+}
+
+func Authorization(c *gin.Context) {
+	var resBody struct {
+		Token string `json:"token"`
+	}
+	if err := c.ShouldBindJSON(&resBody); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error":   true,
+			"message": "Invalid request body",
+			"content": err.Error(),
+		})
+		return
+	}
+	user, err := GetUserByToken(resBody.Token)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"status":  "ng",
+			"message": "ユーザーが見つかりませんでした。",
+		})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, gin.H{
+		"status":  "ok",
+		"message": "ログインしました。",
+		"data":    user,
+	})
+}
+
+func GetUserByToken(token string) (User, error) {
+	var user User
+	err := db_client.DBClient.QueryRow("SELECT * FROM user WHERE token = ?;", token).Scan(
+		&user.Id,
+		&user.Username,
+		&user.Email,
+		&user.Password,
+		&user.Token,
+		&user.Icon,
+		&user.CreatedAt,
+	)
+	if err != nil {
+		log.Println(err)
+		return user, err
+	}
+	return user, nil
 }
 
 func ChangePassword(c *gin.Context) {
 	var resBody struct {
-		Username    string `json:"username"`
-		Password    string `json:"password"`
-		Newpassword string `json:"newpassword"`
+		Email       *string `json:"email"`
+		Password    string  `json:"password"`
+		Newpassword string  `json:"newpassword"`
 	}
 	if err := c.ShouldBindJSON(&resBody); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
@@ -110,7 +169,7 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
-	tmpPass, err := GetUser(resBody.Username)
+	user, err := GetUser(*resBody.Email)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"status":  "ng",
@@ -118,7 +177,7 @@ func ChangePassword(c *gin.Context) {
 		})
 		return
 	}
-	dbPassword := tmpPass.Password
+	dbPassword := user.Password
 	formPassword := resBody.Password
 
 	if err := CompareHashAndPassword(dbPassword, formPassword); err != nil {
@@ -140,9 +199,9 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
-	res, err := db_client.DBClient.Exec("UPDATE user SET password = ? WHERE username = ?;",
+	_, err = db_client.DBClient.Exec("UPDATE user SET password = ? WHERE email = ?;",
 		encryptedNewPassword,
-		resBody.Username,
+		resBody.Email,
 	)
 
 	if err != nil {
@@ -153,12 +212,9 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
-	row, _ := res.RowsAffected()
-
 	c.JSON(http.StatusAccepted, gin.H{
 		"status":  "ok",
 		"message": "パスワードが変更されました。",
-		"row":     row,
 	})
 }
 
@@ -184,54 +240,25 @@ func GetUserInfo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusAccepted, gin.H{
-		"status":     "ok",
-		"username":   user.Username,
-		"prefecture": user.Prefecture,
-	})
-}
-
-func ChangePrefecture(c *gin.Context) {
-	var resBody struct {
-		Username   string `json:"username"`
-		Prefecture string `json:"prefecture"`
-	}
-	if err := c.ShouldBindJSON(&resBody); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"error":   true,
-			"message": "Invalid request body",
-			"content": err.Error(),
-		})
-		return
-	}
-
-	res, err := db_client.DBClient.Exec("UPDATE user SET prefecture = ? WHERE username = ?;",
-		resBody.Prefecture,
-		resBody.Username,
-	)
-	if err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"status":  "ng",
-			"message": "ユーザーが見つかりませんでした。",
-			"content": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusUnprocessableEntity, gin.H{
 		"status":   "ok",
-		"message":  "都道府県情報を変更しました。",
-		"response": res,
+		"username": user.Username,
+		"icon":     user.Icon,
 	})
 }
 
-func GetUser(username string) (User, error) {
-	row := db_client.DBClient.QueryRow("SELECT id, username, password, prefecture FROM user WHERE username = ?;", username)
+func GetUser(email string) (User, error) {
+	row := db_client.DBClient.QueryRow("SELECT id, username, email, password, icon, token FROM user WHERE email = ?;", email)
 	var user User
-	err := row.Scan(&user.Id, &user.Username, &user.Password, &user.Prefecture)
+	err := row.Scan(&user.Id, &user.Username, &user.Email, &user.Password, &user.Icon, &user.Token)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 	return user, err
+}
+
+func isExistUser(token string) bool {
+	row := db_client.DBClient.QueryRow("SELECT id, username, password, icon, token FROM user WHERE token = ?;", token)
+	return row == nil
 }
 
 // 暗号(Hash)化

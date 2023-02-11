@@ -5,6 +5,7 @@ import (
 	"go-sqlx-gin/db_client"
 	"log"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -13,17 +14,32 @@ func main() {
 
 	r := gin.Default()
 
-	r.POST("/", controller.CreatePost)
-	r.GET("/", controller.GetPosts)
-	r.GET("/:id", controller.GetPost)
+	r.Use(cors.New(cors.Config{
+		AllowOrigins: []string{
+			"http://localhost:3000",
+		},
+		AllowHeaders: []string{
+			"Origin",
+			"Content-Length",
+			"Content-Type",
+		},
+		AllowMethods: []string{
+			"POST",
+			"GET",
+			"PUT",
+			"DELETE",
+			"OPTIONS",
+		},
+	}))
+
 	r.GET("/user", controller.GetUserInfo)
 	r.POST("/user/signup", controller.CreateUser)
-	r.GET("/user/login", controller.Login)
+	r.PUT("/user/signin", controller.Signin)
+	r.PUT("/user/authorization", controller.Authorization)
 	r.PUT("/user/changepassword", controller.ChangePassword)
+	r.POST("/word", controller.CreateHistory)
 
-	r.GET("/hospital", controller.GetHospitals)
-
-	if err := r.Run(":5000"); err != nil {
+	if err := r.Run(":8000"); err != nil {
 		log.Fatal(err)
 	}
 }
