@@ -37,7 +37,10 @@ func main() {
 	r.PUT("/user/signin", controller.Signin)
 	r.PUT("/user/authorization", controller.Authorization)
 	r.PUT("/user/changepassword", controller.ChangePassword)
-	r.POST("/word", controller.CreateHistory)
+	r.POST("/profile", controller.CreateProfile)
+	r.POST("/profile/edit", controller.EditProfile)
+	r.POST("/history", controller.CreateHistory)
+	r.GET("/history/list", controller.GetHistory)
 
 	if err := r.Run(":8000"); err != nil {
 		log.Fatal(err)
