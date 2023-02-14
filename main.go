@@ -35,10 +35,11 @@ func main() {
 	r.GET("/user", controller.GetUserInfo)
 	r.POST("/user/signup", controller.CreateUser)
 	r.PUT("/user/signin", controller.Signin)
+	r.DELETE("/user/withdrawal", controller.Withdrawal)
 	r.PUT("/user/authorization", controller.Authorization)
 	r.PUT("/user/changepassword", controller.ChangePassword)
 	r.POST("/profile", controller.CreateProfile)
-	r.POST("/profile/edit", controller.EditProfile)
+	// r.POST("/profile/edit", controller.EditProfile)
 	r.POST("/history", controller.CreateHistory)
 	r.GET("/history/list", controller.GetHistory)
 

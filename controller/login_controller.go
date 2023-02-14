@@ -218,6 +218,61 @@ func ChangePassword(c *gin.Context) {
 	})
 }
 
+// withdrawal
+func Withdrawal(c *gin.Context) {
+	var resBody struct {
+		Token    string `json:"token"`
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&resBody); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"status":  "ng",
+			"message": "Invalid request body",
+			"content": err.Error(),
+		})
+		return
+	}
+
+	user, err := GetUserByToken(resBody.Token)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	if err := CompareHashAndPassword(user.Password, resBody.Password); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "ng",
+			"message": "パスワードが違います。",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	up, err := db_client.DBClient.Prepare("DELETE FROM user WHERE token=?")
+
+	if err != nil {
+		fmt.Println("データベース接続失敗")
+		panic(err.Error())
+	} else {
+		fmt.Println("データベース接続成功")
+	}
+
+	result, err := up.Exec(resBody.Token)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	rowsAffect, err := result.RowsAffected()
+
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	fmt.Println(rowsAffect)
+	c.JSON(http.StatusAccepted, gin.H{
+		"status":  "ok",
+		"message": "ユーザーが削除されました。",
+	})
+}
+
 func GetUserInfo(c *gin.Context) {
 	var resBody struct {
 		Username string `json:"username"`

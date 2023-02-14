@@ -1,14 +1,13 @@
 package controller
 
 import (
-	"bytes"
 	"fmt"
 	"go-sqlx-gin/db_client"
 	"log"
 	"net/http"
 
+	// "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gin-gonic/gin"
-	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/google/uuid"
 )
 
@@ -17,6 +16,9 @@ type Profile struct {
 	UserID      string `json:"user_id"`
 	Description string `json:"description"`
 	Image       string `json:"image"`
+}
+
+type ImageName struct {
 }
 
 func CreateProfile(c *gin.Context) {
@@ -37,50 +39,50 @@ func CreateProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"uuid": uu})
 }
 
-func EditProfile(c *gin.Context) {
-	creds := credentials.NewStaticCredentials(awsAccessKeyID, awsSecretAccessKey, token)
-	cfg := aws.NewConfig().WithRegion("ap-northeast-1").WithCredentials(creds)
-	svc := s3.New(session.New(), cfg)
+// func EditProfile(c *gin.Context) {
+// 	creds := credentials.NewStaticCredentials(awsAccessKeyID, awsSecretAccessKey, token)
+// 	cfg := aws.NewConfig().WithRegion("ap-northeast-1").WithCredentials(creds)
+// 	svc := s3.New(session.New(), cfg)
 
-	form, _ := c.MultipartForm()
+// 	form, _ := c.MultipartForm()
 
-	files := form.File["images[]"]
+// 	files := form.File["images[]"]
 
-	var imageNames []ImageName
-	imageName := ImageName{}
+// 	var imageNames []ImageName
+// 	imageName := ImageName{}
 
-	for _, file := range files {
+// 	for _, file := range files {
 
-		f, err := file.Open()
+// 		f, err := file.Open()
 
-		if err != nil {
-			log.Println(err)
-		}
+// 		if err != nil {
+// 			log.Println(err)
+// 		}
 
-		defer f.Close()
+// 		defer f.Close()
 
-		size := file.Size
-		buffer := make([]byte, size)
+// 		size := file.Size
+// 		buffer := make([]byte, size)
 
-		f.Read(buffer)
-		fileBytes := bytes.NewReader(buffer)
-		fileType := http.DetectContentType(buffer)
-		path := "/media/" + file.Filename
-		params := &s3.PutObjectInput{
-			Bucket:        aws.String("article-s3-jpskgc"),
-			Key:           aws.String(path),
-			Body:          fileBytes,
-			ContentLength: aws.Int64(size),
-			ContentType:   aws.String(fileType),
-		}
-		resp, err := svc.PutObject(params)
+// 		f.Read(buffer)
+// 		fileBytes := bytes.NewReader(buffer)
+// 		fileType := http.DetectContentType(buffer)
+// 		path := "/media/" + file.Filename
+// 		params := &s3.PutObjectInput{
+// 			Bucket:        aws.String("article-s3-jpskgc"),
+// 			Key:           aws.String(path),
+// 			Body:          fileBytes,
+// 			ContentLength: aws.Int64(size),
+// 			ContentType:   aws.String(fileType),
+// 		}
+// 		resp, err := svc.PutObject(params)
 
-		fmt.Printf("response %s", awsutil.StringValue(resp))
+// 		fmt.Printf("response %s", awsutil.StringValue(resp))
 
-		imageName.NAME = file.Filename
+// 		imageName.NAME = file.Filename
 
-		imageNames = append(imageNames, imageName)
-	}
+// 		imageNames = append(imageNames, imageName)
+// 	}
 
-	c.JSON(http.StatusOK, imageNames)
-}
+// 	c.JSON(http.StatusOK, imageNames)
+// }
