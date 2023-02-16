@@ -1,23 +1,24 @@
 package db_client
 
 import (
-	"database/sql"
 	"log"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/hasesho05/models"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
-var DBClient *sql.DB
+var DB *gorm.DB
 
 func InitializeDBConnection() {
-	db, err := sql.Open("mysql", "root:password@tcp(127.0.0.1:3306)/training?parseTime=true")
-	if err != nil {
-		log.Fatal("failed to connect DB:", err.Error())
-	}
-	err = db.Ping()
+	dsn := "root:password@tcp(127.0.0.1:3306)/training?parseTime=true"
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("failed to connect DB:", err.Error())
 	}
 
-	DBClient = db
+	db.AutoMigrate(&models.User{})
+
+	DB = db
 }
